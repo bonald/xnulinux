@@ -1,0 +1,351 @@
+diff --git a/cc/include/corecrypto/cc_config.h b/cc/include/corecrypto/cc_config.h
+index e32f0d3..753e64e 100644
+--- a/cc/include/corecrypto/cc_config.h
++++ b/cc/include/corecrypto/cc_config.h
+@@ -235,4 +235,20 @@
+     #define CC_SMALL_CODE 0
+ #endif
+ 
++
++/*
++ * xnulinux: function pointers in the structures the kernel shares with corecrypto (digest and mode descriptors, the
++ * kernel PRNG's function table) are signed on arm64e kernels as Apple's corecrypto headers declare them (CC_SPTR), so
++ * the kernel's authenticated calls through them check out.
++ */
++#ifndef CC_SPTR
++#if __has_feature(ptrauth_calls) && defined(KERNEL)
++#include <ptrauth.h>
++#define CC_SPTR(_sn_, _n_) \
++    __ptrauth(ptrauth_key_process_independent_code, 1, ptrauth_string_discriminator("cc_" #_sn_ #_n_)) _n_
++#else
++#define CC_SPTR(_sn_, _n_) _n_
++#endif
++#endif
++
+ #endif /* __CORECRYPTO_CC_CONFIG_H__ */
+diff --git a/ccdigest/include/corecrypto/ccdigest.h b/ccdigest/include/corecrypto/ccdigest.h
+index 3c77856..7249bc2 100644
+--- a/ccdigest/include/corecrypto/ccdigest.h
++++ b/ccdigest/include/corecrypto/ccdigest.h
+@@ -76,11 +76,11 @@ struct ccdigest_info {
+     /* the initial state of the hash */
+     const void *initial_state;
+ 
+-    void (*compress)(ccdigest_state_t state,
++    void (*CC_SPTR(ccdigest_info, compress))(ccdigest_state_t state,
+                      size_t nblocks,
+                      const void *in);
+ 
+-    void (*final)(const struct ccdigest_info *di,
++    void (*CC_SPTR(ccdigest_info, final))(const struct ccdigest_info *di,
+                   ccdigest_ctx_t ctx,
+                   void *digest);
+ 
+diff --git a/ccdrbg/include/corecrypto/ccdrbg_impl.h b/ccdrbg/include/corecrypto/ccdrbg_impl.h
+index ec1c390..95bcc50 100644
+--- a/ccdrbg/include/corecrypto/ccdrbg_impl.h
++++ b/ccdrbg/include/corecrypto/ccdrbg_impl.h
+@@ -16,7 +16,7 @@ struct ccdrbg_state;
+ struct ccdrbg_info {
+     size_t size;
+ 
+-    ccdrbg_status_t (*init)(const struct ccdrbg_info *info,
++    ccdrbg_status_t (*CC_SPTR(ccdrbg_info, init))(const struct ccdrbg_info *info,
+                             struct ccdrbg_state *state,
+                             size_t entropy_length,
+                             const void *entropy,
+@@ -25,19 +25,19 @@ struct ccdrbg_info {
+                             size_t ps_length,
+                             const void *ps);
+ 
+-    ccdrbg_status_t (*reseed)(struct ccdrbg_state *state,
++    ccdrbg_status_t (*CC_SPTR(ccdrbg_info, reseed))(struct ccdrbg_state *state,
+                               size_t entropy_length,
+                               const void *entropy,
+                               size_t ad_length,
+                               const void *ad);
+ 
+-    ccdrbg_status_t (*generate)(struct ccdrbg_state *state,
++    ccdrbg_status_t (*CC_SPTR(ccdrbg_info, generate))(struct ccdrbg_state *state,
+                                 size_t out_length,
+                                 void *out,
+                                 size_t ad_length,
+                                 const void *ad);
+ 
+-    void (*done)(struct ccdrbg_state *state);
++    void (*CC_SPTR(ccdrbg_info, done))(struct ccdrbg_state *state);
+ 
+     const void *custom;
+ };
+diff --git a/cckprng/include/corecrypto/cckprng.h b/cckprng/include/corecrypto/cckprng.h
+index ab86b8e..87ef125 100644
+--- a/cckprng/include/corecrypto/cckprng.h
++++ b/cckprng/include/corecrypto/cckprng.h
+@@ -45,13 +45,13 @@ struct cckprng_ctx {
+ };
+ 
+ struct cckprng_funcs {
+-    void (*init)(struct cckprng_ctx *ctx, size_t seed_nbytes, const void *seed, size_t nonce_nbytes, const void *nonce,
++    void (*CC_SPTR(cckprng_funcs, init))(struct cckprng_ctx *ctx, size_t seed_nbytes, const void *seed, size_t nonce_nbytes, const void *nonce,
+                  cckprng_getentropy getentropy, void *getentropy_arg);
+-    void (*initgen)(struct cckprng_ctx *ctx, unsigned gen_idx);
+-    void (*reseed)(struct cckprng_ctx *ctx, size_t nbytes, const void *seed);
+-    void (*refresh)(struct cckprng_ctx *ctx);
+-    void (*generate)(struct cckprng_ctx *ctx, unsigned gen_idx, size_t nbytes, void *out);
+-    void (*init_with_getentropy)(struct cckprng_ctx *ctx, unsigned max_ngens, size_t seed_nbytes, const void *seed,
++    void (*CC_SPTR(cckprng_funcs, initgen))(struct cckprng_ctx *ctx, unsigned gen_idx);
++    void (*CC_SPTR(cckprng_funcs, reseed))(struct cckprng_ctx *ctx, size_t nbytes, const void *seed);
++    void (*CC_SPTR(cckprng_funcs, refresh))(struct cckprng_ctx *ctx);
++    void (*CC_SPTR(cckprng_funcs, generate))(struct cckprng_ctx *ctx, unsigned gen_idx, size_t nbytes, void *out);
++    void (*CC_SPTR(cckprng_funcs, init_with_getentropy))(struct cckprng_ctx *ctx, unsigned max_ngens, size_t seed_nbytes, const void *seed,
+                                  size_t nonce_nbytes, const void *nonce, cckprng_getentropy getentropy, void *getentropy_arg);
+ };
+ 
+diff --git a/ccmode/include/corecrypto/ccmode_impl.h b/ccmode/include/corecrypto/ccmode_impl.h
+index 4178f73..d0e6018 100644
+--- a/ccmode/include/corecrypto/ccmode_impl.h
++++ b/ccmode/include/corecrypto/ccmode_impl.h
+@@ -87,12 +87,12 @@ struct ccmode_ecb {
+     size_t size;
+     size_t block_size;
+ 
+-    cc_error_t (*init)(const struct ccmode_ecb *ecb,
++    cc_error_t (*CC_SPTR(ccmode_ecb, init))(const struct ccmode_ecb *ecb,
+                        ccecb_ctx *ctx,
+                        size_t key_size,
+                        const void *key);
+ 
+-    cc_error_t (*ecb)(const ccecb_ctx *ctx, size_t nblocks, const void *in,
++    cc_error_t (*CC_SPTR(ccmode_ecb, ecb))(const ccecb_ctx *ctx, size_t nblocks, const void *in,
+                       void *out);
+ 
+     void *pad;
+@@ -151,12 +151,12 @@ struct ccmode_cbc {
+     size_t size;
+     size_t block_size;
+ 
+-    cc_error_t (*init)(const struct ccmode_cbc *cbc,
++    cc_error_t (*CC_SPTR(ccmode_cbc, init))(const struct ccmode_cbc *cbc,
+                        cccbc_ctx *ctx,
+                        size_t key_size,
+                        const void *key);
+ 
+-    cc_error_t (*cbc)(const cccbc_ctx *ctx,
++    cc_error_t (*CC_SPTR(ccmode_cbc, cbc))(const cccbc_ctx *ctx,
+                       cccbc_iv *iv,
+                       size_t nblocks,
+                       const void *in,
+@@ -177,13 +177,13 @@ struct ccmode_cfb {
+     size_t size;
+     size_t block_size;
+ 
+-    cc_error_t (*init)(const struct ccmode_cfb *ofb,
++    cc_error_t (*CC_SPTR(ccmode_cfb, init))(const struct ccmode_cfb *ofb,
+                        cccfb_ctx *ctx,
+                        size_t key_size,
+                        const void *key,
+                        const void *iv);
+ 
+-    cc_error_t (*cfb)(cccfb_ctx *ctx,
++    cc_error_t (*CC_SPTR(ccmode_cfb, cfb))(cccfb_ctx *ctx,
+                       size_t nbytes,
+                       const void *in,
+                       void *out);
+@@ -200,13 +200,13 @@ struct ccmode_cfb8 {
+     size_t size;
+     size_t block_size;
+ 
+-    cc_error_t (*init)(const struct ccmode_cfb8 *ofb,
++    cc_error_t (*CC_SPTR(ccmode_cfb8, init))(const struct ccmode_cfb8 *ofb,
+                        cccfb8_ctx *ctx,
+                        size_t key_size,
+                        const void *key,
+                        const void *iv);
+ 
+-    cc_error_t (*cfb8)(cccfb8_ctx *ctx,
++    cc_error_t (*CC_SPTR(ccmode_cfb8, cfb8))(cccfb8_ctx *ctx,
+                        size_t nbytes,
+                        const void *in,
+                        void *out);
+@@ -223,13 +223,13 @@ struct ccmode_ofb {
+     size_t size;
+     size_t block_size;
+ 
+-    cc_error_t (*init)(const struct ccmode_ofb *ofb,
++    cc_error_t (*CC_SPTR(ccmode_ofb, init))(const struct ccmode_ofb *ofb,
+                        ccofb_ctx *ctx,
+                        size_t key_size,
+                        const void *key,
+                        const void *iv);
+ 
+-    cc_error_t (*ofb)(ccofb_ctx *ctx,
++    cc_error_t (*CC_SPTR(ccmode_ofb, ofb))(ccofb_ctx *ctx,
+                       size_t nbytes,
+                       const void *in,
+                       void *out);
+@@ -249,17 +249,17 @@ struct ccmode_ctr {
+     size_t block_size;
+     size_t ecb_block_size;
+ 
+-    cc_error_t (*init)(const struct ccmode_ctr *ctr,
++    cc_error_t (*CC_SPTR(ccmode_ctr, init))(const struct ccmode_ctr *ctr,
+                        ccctr_ctx *ctx,
+                        size_t key_size,
+                        const void *key,
+                        const void *iv);
+ 
+-    cc_error_t (*setctr)(const struct ccmode_ctr *ctr,
++    cc_error_t (*CC_SPTR(ccmode_ctr, setctr))(const struct ccmode_ctr *ctr,
+                          ccctr_ctx *ctx,
+                          const void *counter);
+ 
+-    cc_error_t (*ctr)(ccctr_ctx *ctx,
++    cc_error_t (*CC_SPTR(ccmode_ctr, ctr))(ccctr_ctx *ctx,
+                       size_t nbytes,
+                       const void *in,
+                       void *out);
+@@ -287,29 +287,29 @@ struct ccmode_gcm {
+     int encdec;
+     size_t block_size;
+     
+-    cc_error_t (*init)(const struct ccmode_gcm *gcm,
++    cc_error_t (*CC_SPTR(ccmode_gcm, init))(const struct ccmode_gcm *gcm,
+                        ccgcm_ctx *cyx,
+                        size_t key_size,
+                        const void *key);
+     
+-    cc_error_t (*set_iv)(ccgcm_ctx *ctx,
++    cc_error_t (*CC_SPTR(ccmode_gcm, set_iv))(ccgcm_ctx *ctx,
+                          size_t iv_size,
+                          const void *iv);
+     
+-    cc_error_t (*gmac)(ccgcm_ctx *ctx,
++    cc_error_t (*CC_SPTR(ccmode_gcm, gmac))(ccgcm_ctx *ctx,
+                        size_t nbytes,
+                        const void *in);
+     
+-    cc_error_t (*gcm)(ccgcm_ctx *ctx,
++    cc_error_t (*CC_SPTR(ccmode_gcm, gcm))(ccgcm_ctx *ctx,
+                       size_t nbytes,
+                       const void *in,
+                       void *out);
+     
+-    cc_error_t (*finalize)(ccgcm_ctx *ctx,
++    cc_error_t (*CC_SPTR(ccmode_gcm, finalize))(ccgcm_ctx *ctx,
+                            size_t tag_size,
+                            void *tag);
+     
+-    cc_error_t (*reset)(ccgcm_ctx *ctx);
++    cc_error_t (*CC_SPTR(ccmode_gcm, reset))(ccgcm_ctx *ctx);
+     
+     const void *custom;
+ };
+@@ -327,23 +327,23 @@ struct ccmode_xts {
+     size_t tweak_size;
+     size_t block_size;
+     
+-    cc_error_t (*init)(const struct ccmode_xts *xts,
++    cc_error_t (*CC_SPTR(ccmode_xts, init))(const struct ccmode_xts *xts,
+                        ccxts_ctx *ctx,
+                        size_t key_size,
+                        const void *data_key,
+                        const void *tweak_key);
+     
+-    cc_error_t (*key_sched)(const struct ccmode_xts *xts,
++    cc_error_t (*CC_SPTR(ccmode_xts, key_sched))(const struct ccmode_xts *xts,
+                             ccxts_ctx *ctx,
+                             size_t key_size,
+                             const void *data_key,
+                             const void *tweak_key);
+     
+-    cc_error_t (*set_tweak)(const ccxts_ctx *ctx,
++    cc_error_t (*CC_SPTR(ccmode_xts, set_tweak))(const ccxts_ctx *ctx,
+                             ccxts_tweak *tweak,
+                             const void *iv);
+     
+-    void *(*xts)(const ccxts_ctx *ctx,
++    void *(*CC_SPTR(ccmode_xts, xts))(const ccxts_ctx *ctx,
+                  ccxts_tweak *tweak,
+                  size_t nblocks,
+                  const void *in,
+@@ -368,12 +368,12 @@ struct ccmode_ccm {
+     size_t nonce_size;
+     size_t block_size;
+     
+-    cc_error_t (*init)(const struct ccmode_ccm *ccm,
++    cc_error_t (*CC_SPTR(ccmode_ccm, init))(const struct ccmode_ccm *ccm,
+                        ccccm_ctx *ctx,
+                        size_t key_size,
+                        const void *key);
+     
+-    cc_error_t (*set_iv)(ccccm_ctx *ctx,
++    cc_error_t (*CC_SPTR(ccmode_ccm, set_iv))(ccccm_ctx *ctx,
+                          ccccm_nonce *nonce_ctx,
+                          size_t nonce_len,
+                          const void *nonce,
+@@ -381,22 +381,22 @@ struct ccmode_ccm {
+                          size_t auth_len,
+                          size_t data_len);
+     
+-    cc_error_t (*cbcmac)(ccccm_ctx *ctx,
++    cc_error_t (*CC_SPTR(ccmode_ccm, cbcmac))(ccccm_ctx *ctx,
+                          ccccm_nonce *nonce,
+                          size_t nbytes,
+                          const void *in);
+     
+-    cc_error_t (*ccm)(ccccm_ctx *ctx,
++    cc_error_t (*CC_SPTR(ccmode_ccm, ccm))(ccccm_ctx *ctx,
+                       ccccm_nonce *nonce,
+                       size_t nbytes,
+                       const void *in,
+                       void *out);
+     
+-    cc_error_t (*finalize)(ccccm_ctx *ctx,
++    cc_error_t (*CC_SPTR(ccmode_ccm, finalize))(ccccm_ctx *ctx,
+                            ccccm_nonce *nonce,
+                            void *mac);
+     
+-    cc_error_t (*reset)(ccccm_ctx *ctx,
++    cc_error_t (*CC_SPTR(ccmode_ccm, reset))(ccccm_ctx *ctx,
+                         ccccm_nonce *nonce);
+     
+     const void *custom;
+diff --git a/ccrng/include/corecrypto/ccrng.h b/ccrng/include/corecrypto/ccrng.h
+index 8cf93c8..94d5400 100644
+--- a/ccrng/include/corecrypto/ccrng.h
++++ b/ccrng/include/corecrypto/ccrng.h
+@@ -14,7 +14,7 @@
+ CC_BEGIN_DECLS
+ 
+ struct ccrng_state {
+-    cc_error_t (*generate)(struct ccrng_state *rng,
++    cc_error_t (*CC_SPTR(ccrng_state, generate))(struct ccrng_state *rng,
+                            size_t out_length,
+                            void *out);
+ };
+diff --git a/ccrng/include/corecrypto/ccrng_system.h b/ccrng/include/corecrypto/ccrng_system.h
+index 16d83d0..6f3843c 100644
+--- a/ccrng/include/corecrypto/ccrng_system.h
++++ b/ccrng/include/corecrypto/ccrng_system.h
+@@ -15,7 +15,7 @@ CC_BEGIN_DECLS
+ 
+ // deprecated wrapper over ccrng(), kept for existing callers
+ struct ccrng_system_state {
+-    cc_error_t (*generate)(struct ccrng_state *rng, size_t out_length, void *out);
++    cc_error_t (*CC_SPTR(ccrng_state, generate))(struct ccrng_state *rng, size_t out_length, void *out); /* xnulinux: read as a ccrng_state */
+     int fd;
+ };
+ 
+diff --git a/corecrypto_kext/main.c b/corecrypto_kext/main.c
+index 3e992cb..a3a859c 100644
+--- a/corecrypto_kext/main.c
++++ b/corecrypto_kext/main.c
+@@ -173,7 +173,7 @@ static bool crypto_hmac_verify(crypto_digest_alg_t alg, const void *key, size_t
+ 
+ // pd: random handles are ccrng_state shaped, the kmem one is a lock-free integer-only chacha20 stream
+ struct kmem_rng {
+-    cc_error_t (*generate)(struct ccrng_state *rng, size_t nbytes, void *out);
++    cc_error_t (*CC_SPTR(ccrng_state, generate))(struct ccrng_state *rng, size_t nbytes, void *out); /* xnulinux: read as a ccrng_state */
+     ccchacha20_ctx chacha;
+ };
+ 

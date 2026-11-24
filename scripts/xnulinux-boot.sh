@@ -10,7 +10,7 @@
 #                                    kernel log goes to /var/log/xnulinux/, the exit status says how it ended
 #        xnulinux-boot.sh stop       end it (the disk synced first)
 #
-# Configuration: /etc/xnulinux.conf, then /var/tmp/mac.conf (written by mk-macvm-disk.sh: ROOT_UUID, BOOT_UUID), then the
+# Configuration: /etc/xnulinux.conf, then $MAC_CONF (/var/tmp/mac.conf, written by mk-macvm-disk.sh: ROOT_UUID, BOOT_UUID), then the
 # environment:
 #   DISK (/var/tmp/mac.img)  RAM_MB (7900)  BOOTARGS  CONSOLE_IN (/var/tmp/console-in)  INPUT_IN (/var/tmp/xnu-input)
 #   FB_DUMP (/var/tmp/xnu-fb.raw)  KEYSTORE (/var/tmp/xnu-keystore.bin)  TRUSTCACHE (xnu/trustcache-mac.bin)
@@ -33,7 +33,8 @@ if [ "${1:-}" = stop ]; then	# end the running hosted system (its disk synced fi
 fi
 WAIT=0; [ "${1:-}" = --wait ] && WAIT=1
 [ -f /etc/xnulinux.conf ] && . /etc/xnulinux.conf
-[ -f /var/tmp/mac.conf ] && . /var/tmp/mac.conf
+MAC_CONF=${MAC_CONF:-/var/tmp/mac.conf}	# the disk's UUIDs: mk-macvm-disk.sh's, or mk-puredarwin-disk.sh's output
+[ -f "$MAC_CONF" ] && . "$MAC_CONF"
 DISK=${DISK:-/var/tmp/mac.img}; RAM_MB=${RAM_MB:-7900}; GPU=${GPU:-auto}; CPUS=${CPUS:-1}
 CONSOLE_IN=${CONSOLE_IN:-/var/tmp/console-in}; INPUT_IN=${INPUT_IN:-/var/tmp/xnu-input}; FB_DUMP=${FB_DUMP:-/var/tmp/xnu-fb.raw}
 KEYSTORE=${KEYSTORE:-/var/tmp/xnu-keystore.bin}; TRUSTCACHE=${TRUSTCACHE:-xnu/trustcache-mac.bin}; IMAGE=${IMAGE:-xnu/kc.bin}
