@@ -50,7 +50,5 @@ kernel has; and a kext's load tag.
   relied on to protect anything.
 - The kernel headers the kexts build against come from this kernel's `installhdrs`. PureDarwin's AMFI stub also needs
   PureDarwin's CoreEntitlements and TrustCache headers.
-- The kernel's link line has Apple clang's `libclang_rt.cc_kext_ios.a` (compiler-rt); which of its members end up in the
-  kernel has not been checked.
 - Apple's kexts on top of this collection (an auxiliary collection chosen when `xnu.ko` loads) is the next piece.
 - Tested in the krunkit VM with 1 and 2 hosted CPUs: console shell, `launchctl list`, writes to the root, `halt`.

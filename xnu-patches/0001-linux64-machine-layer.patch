@@ -2066,7 +2066,7 @@ diff --git a/osfmk/kern/link_compat.c b/osfmk/kern/link_compat.c
 index e494eab..fc40514 100644
 --- a/osfmk/kern/link_compat.c
 +++ b/osfmk/kern/link_compat.c
-@@ -65,3 +65,21 @@ native_verified_block_manifest_sha384(unsigned int device, const char *uuid, uin
+@@ -65,3 +65,40 @@ native_verified_block_manifest_sha384(unsigned int device, const char *uuid, uin
  }
  
  #endif
@@ -2087,6 +2087,25 @@ index e494eab..fc40514 100644
 +os_metric_coprocessor(void)
 +{
 +	return 0;
++}
++
++/*
++ * LINUX64 (xnulinux): the two functions of compiler-rt's profile runtime that OSKext's kext PGO collection calls. Without
++ * them the link takes the runtime's objects from the toolchain's libclang_rt.cc_kext archive, Apple's binary. No kext
++ * here is built with profiling; one that is gets size 0 and EIO.
++ */
++uint64_t __llvm_profile_get_size_for_buffer_internal(void);
++uint64_t
++__llvm_profile_get_size_for_buffer_internal(void)
++{
++	return 0;
++}
++
++int __llvm_profile_write_buffer_internal(void);
++int
++__llvm_profile_write_buffer_internal(void)
++{
++	return -1;
 +}
 diff --git a/osfmk/kern/printf.c b/osfmk/kern/printf.c
 index 2fc6931..d581670 100644
