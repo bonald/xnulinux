@@ -7,9 +7,8 @@
 #   IMAGE=xnu/kc-free.bin DISK=... ROOT_UUID=... scripts/xnulinux-boot.sh
 # Sources are fetched at pinned revisions; corecrypto gets kexts/free/patches/corecrypto-arm64e-sptr.patch.
 #
-# What is not there yet (docs/free-kc.md): the collection is still laid out on the template of Apple's kernelcache
-# (out/kc/kc27.bin, as vm-xnu-rebuild.sh's): Apple's kexts are left out and their segments cleared, but its link-edit data
-# and prelink metadata are still in the file, so this output is not yet something to distribute.
+# Nothing of Apple's is read: the collection is linked into an empty one that mk-template.py makes from layout numbers
+# (layout.json) and XNU's own pseudo-extensions.
 set -euo pipefail
 POC=$(cd "$(dirname "$0")/../.." && pwd)
 DVM=${DVM:-$HOME/w/dvm}; W=${FREE_KC_WORK:-$HOME/w/free-kc}; OUT=${OUT:-/lib/firmware/xnu/kc-free.bin}
@@ -98,7 +97,11 @@ patch(f'{t}/k27/kc-build27.py', "module.KEPT_POINTER_REBINDS = [(0xfffffe0007b4b
 PY
 N="$O/specs/corecrypto.json $O/specs/amfi.json $O/specs/pthread.json $O/specs/IOStorageFamily.json $O/specs/HFSEncodings.json $O/specs/hfs.json"
 for k in XnuCPU XnuDisk XnuDrm; do N="$N $POC/kexts/$k/$k.json"; done
-( cd $DVM && python3 $T/k27/kc-build27.py out/kc/kc27.bin out/k27/kernel-k27.macho $W/kc-free.bin --keep --native $N > $W/kc-build.log 2>&1 ) ||
+# the collection is linked into an empty one made from layout numbers and XNU's own pseudo-extensions (mk-template.py):
+# nothing of Apple's kernelcache is read
+python3 $POC/scripts/free-kc/mk-template.py $POC/scripts/free-kc/layout.json $DVM/out/k27/xnu \
+	$(strings $DVM/out/k27/kernel-k27.macho | sed -n 's/^Darwin Kernel Version \([0-9.]*\):.*/\1/p' | head -1) $W/kc-template.bin
+( cd $DVM && python3 $T/k27/kc-build27.py $W/kc-template.bin out/k27/kernel-k27.macho $W/kc-free.bin --keep --native $N > $W/kc-build.log 2>&1 ) ||
 	{ grep -E "nresolv|Error|Traceback|dropped|no room" $W/kc-build.log | head; exit 1; }
 grep -E "keeping|wrote" $W/kc-build.log
 sudo cp $W/kc-free.bin $OUT && echo "kernel collection without Apple's kexts: $OUT"

@@ -5,8 +5,8 @@ personalities from the kext's own Info.plist, its objects plus the compat object
 
     genspec.py SRC OBJDIR SPECDIR NAME...
 
-Each one stands in for Apple's kext of the same bundle id in the template collection (its bytes are left out); the
-com.apple.kec.* ones are marked AppleKernelExternalComponent, which is what makes KLDBootstrap start them before IOKit
+The collection they are linked into (mk-template.py) has no kexts, so none stands in for another. The com.apple.kec.*
+ones are marked AppleKernelExternalComponent, which is what makes KLDBootstrap start them before IOKit
 (corecrypto must register before IOPlatformExpertDevice hashes the platform UUID).
 """
 import json, plistlib, sys
@@ -22,7 +22,6 @@ KEXTS = {   # name: (Info.plist below SRC, bundle id when the plist leaves it to
     'HFSEncodings': ('pd/src/Kernel/Extensions/HFSEncodings/Info.plist', None, None, None, []),
     'hfs': ('pd/src/Kernel/Extensions/hfs/Info.plist', None, None, None, ['loadtag']),
 }
-NOT_IN_TEMPLATE = {'HFSEncodings', 'amfi'}   # the template collection has no kext of that bundle id to stand in for
 for name in sys.argv[4:]:
     plist, bundle, start, stop, compat = KEXTS[name]
     info = plistlib.load(open(SRC / plist, 'rb'))
@@ -39,7 +38,6 @@ for name in sys.argv[4:]:
             'version': str(info.get('CFBundleVersion', '1.0')).split('d')[0],
             'objects': str(O / name / 'objects-kc.json'), 'start': start, 'stop': stop,
             'libraries': info.get('OSBundleLibraries', {}), 'personalities': info.get('IOKitPersonalities', {}),
-            'plist': {'AppleKernelExternalComponent': True} if info['CFBundleIdentifier'].startswith('com.apple.kec.') else {},
-            'stands_in_for': [] if name in NOT_IN_TEMPLATE else [info['CFBundleIdentifier']]}
+            'plist': {'AppleKernelExternalComponent': True} if info['CFBundleIdentifier'].startswith('com.apple.kec.') else {}}
     (OUT / f'{name}.json').write_text(json.dumps(spec, indent=1, default=str) + '\n')
     print(f'{name}: {spec["bundle"]}, {len(objects)} objects, {len(spec["personalities"])} personalities')
